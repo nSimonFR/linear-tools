@@ -1,0 +1,16 @@
+# apple
+.DS_Store
+
+# tmp
+tmp
+.tmp
+
+# env
+env
+.env
+
+# js specific
+node_modules
+.nyc_output
+coverage
+yarn.lock
