@@ -6,6 +6,11 @@ const linearClient = new LinearClient({
 
 const queryParent = `query Issues($issueId: String!) {
   issue(id: $issueId) {
+    labels {
+      nodes {
+        name
+      }
+    }
     parent {
       id,
       title,
@@ -71,26 +76,34 @@ export const findState = (issue, childrens) => {
   return state.id;
 };
 
-const updateParentState = async (issueId, labelToCheck = "EPIC") => {
+const hasLabel = (issue, labelToCheck) =>
+  issue.labels.nodes.some((l) => l.name === labelToCheck);
+
+export const updateParentState = async (issueId, labelToCheck = "EPIC") => {
   const result = await linearClient.client.rawRequest(queryParent, { issueId });
 
-  const issue = result.data.issue.parent;
-  if (!issue) {
-    return console.debug("Stopping - No parent.");
+  const issue = result.data.issue;
+  const parent = issue.parent;
+  if (!parent) {
+    if (!hasLabel(issue, labelToCheck)) {
+      return console.debug(`Stopping - No parent & not ${labelToCheck}`);
+    }
+
+    await linearClient.issueUpdate(issueId, { estimate: 0 });
+  } else {
+    if (!hasLabel(parent, labelToCheck)) {
+      return console.debug(`Stopping - Parent not a ${labelToCheck}.`);
+    }
+
+    console.info(`Found ${labelToCheck}: ${parent.title}.`);
+
+    const stateId = await findState(parent, parent.children.nodes);
+    if (stateId) {
+      console.info(`Updating ${labelToCheck} to state: ${stateId}.`);
+    }
+
+    await linearClient.issueUpdate(parent.id, { stateId });
   }
-
-  if (!issue.labels.nodes.some((l) => l.name === labelToCheck)) {
-    return console.debug(`Stopping - Parent not a ${labelToCheck}.`);
-  }
-
-  console.info(`Found ${labelToCheck}: ${issue.title}.`);
-
-  const stateId = findState(issue, issue.children.nodes);
-  if (stateId) {
-    console.info(`Updating ${labelToCheck} to state: ${stateId}.`);
-  }
-
-  await linearClient.issueUpdate(issue.id, { stateId, estimate: 0 });
 };
 
 export const updateEpic = async (req, res) => {
