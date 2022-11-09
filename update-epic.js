@@ -40,6 +40,9 @@ const queryParent = `query Issues($issueId: String!) {
             name
             position
             type
+            team {
+              id
+            }
           }
         }
       }
@@ -47,7 +50,7 @@ const queryParent = `query Issues($issueId: String!) {
   }
 }`;
 
-export const findState = (issue, childrens) => {
+export const findState = (issue, childrens, states) => {
   const stateTypesOrdered = [
     "started",
     "unstarted",
@@ -57,7 +60,7 @@ export const findState = (issue, childrens) => {
     "canceled",
   ];
 
-  let state;
+  let state = null;
   for (const children of childrens) {
     if (
       !state ||
@@ -69,11 +72,21 @@ export const findState = (issue, childrens) => {
     }
   }
 
-  if (!state) {
-    return console.log(`[State] Stopping - No state / childrens.`);
+  if (!state) return null;
+  if (state.team.id === issue.team.id) return state;
+
+  const matchingState = states.find((s) => s.name === state.name);
+  if (matchingState) return matchingState;
+
+  state = null;
+  const childrensForTeam = childrens.filter((c) => c.team.id === issue.team.id);
+  for (const children of childrensForTeam) {
+    if (!state || children.state.position < state.position) {
+      state = children.state;
+    }
   }
 
-  return state.id;
+  return state;
 };
 
 const hasLabel = (issue, labelToCheck) =>
@@ -97,12 +110,22 @@ export const updateParentState = async (issueId, labelToCheck = "EPIC") => {
 
     console.info(`Found ${labelToCheck}: ${parent.title}.`);
 
-    const stateId = await findState(parent, parent.children.nodes);
-    if (stateId) {
-      console.info(`Updating ${labelToCheck} to state: ${stateId}.`);
+    const statesResult = await linearClient.workflowStates({
+      filter: { team: { id: { eq: parent.team.id } } },
+    });
+    const states = statesResult.nodes;
+
+    const state = await findState(parent, parent.children.nodes, states);
+    if (!state) {
+      return console.log(`[State] Stopping - No state.`);
     }
 
-    await linearClient.issueUpdate(parent.id, { stateId });
+    if (state.id === parent.state.id) {
+      return console.log(`No need to update - matching state ${state.name}.`);
+    }
+    console.info(`Updating ${labelToCheck} to state: ${state.name}.`);
+
+    await linearClient.issueUpdate(parent.id, { stateId: state.id });
   }
 };
 
