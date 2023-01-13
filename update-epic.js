@@ -62,11 +62,18 @@ export const findState = (issue, childrens, states) => {
 
   let state = null;
   for (const children of childrens) {
+    // Initial iteration for setup
+    if (!state) {
+      state = children.state;
+      continue;
+    }
+
+    const indexOfChildren = stateTypesOrdered.indexOf(children.state.type);
+    const indexOfState = stateTypesOrdered.indexOf(state.type);
     if (
-      !state ||
-      stateTypesOrdered.indexOf(children.state.type) <
-        stateTypesOrdered.indexOf(state.type) ||
-      children.state.position < state.position
+      indexOfChildren < indexOfState ||
+      (indexOfChildren === indexOfState &&
+        children.state.position < state.position)
     ) {
       state = children.state;
     }
@@ -101,6 +108,8 @@ export const updateParentState = async (issueId, labelToCheck = "EPIC") => {
     if (!hasLabel(issue, labelToCheck)) {
       return console.debug(`Stopping - No parent & not ${labelToCheck}`);
     }
+
+    // TODO allow automatic update from issue
 
     await linearClient.issueUpdate(issueId, { estimate: 0 });
   } else {
