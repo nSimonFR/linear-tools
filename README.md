@@ -1,3 +1,5 @@
+Linear EPIC is still relevant, but I would rather you see => https://github.com/nSimonFR/GPT-Linear
+
 # Linear API scripts
 
 A collection of useful linear scripts I made, as I required them for my usage and the Linear API (As well as the product in itself) is actually kinda insanely good and well documented.
